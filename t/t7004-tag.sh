@@ -1863,13 +1863,6 @@ test_expect_success 'version sort with very long prerelease suffix' '
 	git tag -l --sort=version:refname
 '
 
-run_with_limited_stack () {
-	(ulimit -s 128 && "$@")
-}
-
-test_lazy_prereq ULIMIT_STACK_SIZE 'run_with_limited_stack true'
-
-# we require ulimit, this excludes Windows
 test_expect_success ULIMIT_STACK_SIZE '--contains and --no-contains work in a deep repo' '
 	>expect &&
 	i=1 &&
@@ -1914,7 +1907,13 @@ test_expect_success '%(color) omitted without tty' '
 '
 
 test_expect_success TTY '%(color) present with tty' '
-	test_terminal env TERM=vt100 git tag $color_args >actual.raw &&
+	test_terminal git tag $color_args >actual.raw &&
+	test_decode_color <actual.raw >actual &&
+	test_cmp expect.color actual
+'
+
+test_expect_success '--color overrides auto-color' '
+	git tag --color $color_args >actual.raw &&
 	test_decode_color <actual.raw >actual &&
 	test_cmp expect.color actual
 '

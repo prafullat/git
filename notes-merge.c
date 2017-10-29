@@ -302,14 +302,12 @@ static void write_buf_to_worktree(const struct object_id *obj,
 	fd = xopen(path, O_WRONLY | O_EXCL | O_CREAT, 0666);
 
 	while (size > 0) {
-		long ret = write_in_full(fd, buf, size);
+		ssize_t ret = write_in_full(fd, buf, size);
 		if (ret < 0) {
 			/* Ignore epipe */
 			if (errno == EPIPE)
 				break;
 			die_errno("notes-merge");
-		} else if (!ret) {
-			die("notes-merge: disk full?");
 		}
 		size -= ret;
 		buf += ret;
@@ -624,7 +622,7 @@ int notes_merge(struct notes_merge_options *o,
 	if (!oidcmp(&remote->object.oid, base_oid)) {
 		/* Already merged; result == local commit */
 		if (o->verbosity >= 2)
-			printf("Already up-to-date!\n");
+			printf("Already up to date!\n");
 		oidcpy(result_oid, &local->object.oid);
 		goto found_result;
 	}

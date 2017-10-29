@@ -338,6 +338,13 @@ static int check_auto_color(void)
 
 int want_color(int var)
 {
+	/*
+	 * NEEDSWORK: This function is sometimes used from multiple threads, and
+	 * we end up using want_auto racily. That "should not matter" since
+	 * we always write the same value, but it's still wrong. This function
+	 * is listed in .tsan-suppressions for the time being.
+	 */
+
 	static int want_auto = -1;
 
 	if (var < 0)
@@ -359,6 +366,14 @@ int git_color_config(const char *var, const char *value, void *cb)
 	}
 
 	return 0;
+}
+
+int git_color_default_config(const char *var, const char *value, void *cb)
+{
+	if (git_color_config(var, value, cb) < 0)
+		return -1;
+
+	return git_default_config(var, value, cb);
 }
 
 void color_print_strbuf(FILE *fp, const char *color, const struct strbuf *sb)

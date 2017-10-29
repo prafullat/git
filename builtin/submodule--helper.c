@@ -17,9 +17,8 @@
 static char *get_default_remote(void)
 {
 	char *dest = NULL, *ret;
-	unsigned char sha1[20];
 	struct strbuf sb = STRBUF_INIT;
-	const char *refname = resolve_ref_unsafe("HEAD", 0, sha1, NULL);
+	const char *refname = resolve_ref_unsafe("HEAD", 0, NULL, NULL);
 
 	if (!refname)
 		die(_("No such ref: %s"), "HEAD");
@@ -1089,8 +1088,7 @@ static const char *remote_submodule_branch(const char *path)
 		return "master";
 
 	if (!strcmp(branch, ".")) {
-		unsigned char sha1[20];
-		const char *refname = resolve_ref_unsafe("HEAD", 0, sha1, NULL);
+		const char *refname = resolve_ref_unsafe("HEAD", 0, NULL, NULL);
 
 		if (!refname)
 			die(_("No such ref: %s"), "HEAD");
@@ -1189,6 +1187,7 @@ static int push_check(int argc, const char **argv, const char *prefix)
 						break;
 					die("HEAD does not match the named branch in the superproject");
 				}
+				/* fallthrough */
 			default:
 				die("src refspec '%s' must name a ref",
 				    rs->src);

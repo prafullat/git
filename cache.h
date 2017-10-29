@@ -4,6 +4,7 @@
 #include "git-compat-util.h"
 #include "strbuf.h"
 #include "hashmap.h"
+#include "mru.h"
 #include "advice.h"
 #include "gettext.h"
 #include "convert.h"
@@ -443,6 +444,7 @@ static inline enum object_type object_type(unsigned int mode)
 #define GIT_NOGLOB_PATHSPECS_ENVIRONMENT "GIT_NOGLOB_PATHSPECS"
 #define GIT_ICASE_PATHSPECS_ENVIRONMENT "GIT_ICASE_PATHSPECS"
 #define GIT_QUARANTINE_ENVIRONMENT "GIT_QUARANTINE_PATH"
+#define GIT_OPTIONAL_LOCKS_ENVIRONMENT "GIT_OPTIONAL_LOCKS"
 
 /*
  * This environment variable is expected to contain a boolean indicating
@@ -781,6 +783,11 @@ extern int protect_ntfs;
  * account.
  */
 extern int ref_paranoia;
+
+/*
+ * Returns the boolean value of $GIT_OPTIONAL_LOCKS (or the default value).
+ */
+int use_optional_locks(void);
 
 /*
  * The character that begins a commented line in user-editable file
@@ -1243,8 +1250,8 @@ static inline unsigned int hexval(unsigned char c)
  */
 static inline int hex2chr(const char *s)
 {
-	int val = hexval(s[0]);
-	return (val < 0) ? val : (val << 4) | hexval(s[1]);
+	unsigned int val = hexval(s[0]);
+	return (val & ~0xf) ? val : (val << 4) | hexval(s[1]);
 }
 
 /* Convert to/from hex/sha1 representation */
@@ -1589,8 +1596,7 @@ extern struct packed_git {
  * A most-recently-used ordered version of the packed_git list, which can
  * be iterated instead of packed_git (and marked via mru_mark).
  */
-struct mru;
-extern struct mru *packed_git_mru;
+extern struct mru packed_git_mru;
 
 struct pack_entry {
 	off_t offset;

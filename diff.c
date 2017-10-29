@@ -358,6 +358,9 @@ int git_diff_ui_config(const char *var, const char *value, void *cb)
 		return 0;
 	}
 
+	if (git_color_config(var, value, cb) < 0)
+		return -1;
+
 	return git_diff_basic_config(var, value, cb);
 }
 
@@ -459,7 +462,7 @@ static struct diff_tempfile {
 	 * If this diff_tempfile instance refers to a temporary file,
 	 * this tempfile object is used to manage its lifetime.
 	 */
-	struct tempfile tempfile;
+	struct tempfile *tempfile;
 } diff_temp[2];
 
 struct emit_callback {
@@ -712,20 +715,22 @@ static int next_byte(const char **cp, const char **endp,
 	if (*cp > *endp)
 		return -1;
 
-	if (DIFF_XDL_TST(diffopt, IGNORE_WHITESPACE_CHANGE)) {
-		while (*cp < *endp && isspace(**cp))
-			(*cp)++;
-		/*
-		 * After skipping a couple of whitespaces, we still have to
-		 * account for one space.
-		 */
-		return (int)' ';
-	}
+	if (isspace(**cp)) {
+		if (DIFF_XDL_TST(diffopt, IGNORE_WHITESPACE_CHANGE)) {
+			while (*cp < *endp && isspace(**cp))
+				(*cp)++;
+			/*
+			 * After skipping a couple of whitespaces,
+			 * we still have to account for one space.
+			 */
+			return (int)' ';
+		}
 
-	if (DIFF_XDL_TST(diffopt, IGNORE_WHITESPACE)) {
-		while (*cp < *endp && isspace(**cp))
-			(*cp)++;
-		/* return the first non-ws character via the usual below */
+		if (DIFF_XDL_TST(diffopt, IGNORE_WHITESPACE)) {
+			while (*cp < *endp && isspace(**cp))
+				(*cp)++;
+			/* return the first non-ws character via the usual below */
+		}
 	}
 
 	retval = (unsigned char)(**cp);
@@ -1414,7 +1419,7 @@ static void remove_tempfile(void)
 {
 	int i;
 	for (i = 0; i < ARRAY_SIZE(diff_temp); i++) {
-		if (is_tempfile_active(&diff_temp[i].tempfile))
+		if (is_tempfile_active(diff_temp[i].tempfile))
 			delete_tempfile(&diff_temp[i].tempfile);
 		diff_temp[i].name = NULL;
 	}
@@ -1541,7 +1546,7 @@ static void emit_rewrite_diff(const char *name_a,
 
 struct diff_words_buffer {
 	mmfile_t text;
-	long alloc;
+	unsigned long alloc;
 	struct diff_words_orig {
 		const char *begin, *end;
 	} *orig;
@@ -2583,6 +2588,7 @@ static void show_stats(struct diffstat_t *data, struct diff_options *options)
 	}
 
 	print_stat_summary_inserts_deletes(options, total_files, adds, dels);
+	strbuf_release(&out);
 }
 
 static void show_shortstats(struct diffstat_t *data, struct diff_options *options)
@@ -3720,7 +3726,6 @@ static void prep_temp_blob(const char *path, struct diff_tempfile *temp,
 			   const struct object_id *oid,
 			   int mode)
 {
-	int fd;
 	struct strbuf buf = STRBUF_INIT;
 	struct strbuf template = STRBUF_INIT;
 	char *path_dup = xstrdup(path);
@@ -3730,18 +3735,18 @@ static void prep_temp_blob(const char *path, struct diff_tempfile *temp,
 	strbuf_addstr(&template, "XXXXXX_");
 	strbuf_addstr(&template, base);
 
-	fd = mks_tempfile_ts(&temp->tempfile, template.buf, strlen(base) + 1);
-	if (fd < 0)
+	temp->tempfile = mks_tempfile_ts(template.buf, strlen(base) + 1);
+	if (!temp->tempfile)
 		die_errno("unable to create temp-file");
 	if (convert_to_working_tree(path,
 			(const char *)blob, (size_t)size, &buf)) {
 		blob = buf.buf;
 		size = buf.len;
 	}
-	if (write_in_full(fd, blob, size) != size)
+	if (write_in_full(temp->tempfile->fd, blob, size) < 0 ||
+	    close_tempfile_gently(temp->tempfile))
 		die_errno("unable to write temp-file");
-	close_tempfile(&temp->tempfile);
-	temp->name = get_tempfile_path(&temp->tempfile);
+	temp->name = get_tempfile_path(temp->tempfile);
 	oid_to_hex_r(temp->hex, oid);
 	xsnprintf(temp->mode, sizeof(temp->mode), "%06o", mode);
 	strbuf_release(&buf);
@@ -5272,6 +5277,7 @@ static void show_mode_change(struct diff_options *opt, struct diff_filepair *p,
 			strbuf_addch(&sb, ' ');
 			quote_c_style(p->two->path, &sb, NULL, 0);
 		}
+		strbuf_addch(&sb, '\n');
 		emit_diff_symbol(opt, DIFF_SYMBOL_SUMMARY,
 				 sb.buf, sb.len, 0);
 		strbuf_release(&sb);
@@ -5289,6 +5295,7 @@ static void show_rename_copy(struct diff_options *opt, const char *renamecopy,
 	emit_diff_symbol(opt, DIFF_SYMBOL_SUMMARY,
 				 sb.buf, sb.len, 0);
 	show_mode_change(opt, p, 0);
+	strbuf_release(&sb);
 }
 
 static void diff_summary(struct diff_options *opt, struct diff_filepair *p)
@@ -5314,6 +5321,7 @@ static void diff_summary(struct diff_options *opt, struct diff_filepair *p)
 			strbuf_addf(&sb, " (%d%%)\n", similarity_index(p));
 			emit_diff_symbol(opt, DIFF_SYMBOL_SUMMARY,
 					 sb.buf, sb.len, 0);
+			strbuf_release(&sb);
 		}
 		show_mode_change(opt, p, !p->score);
 		break;

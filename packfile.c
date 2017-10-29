@@ -40,9 +40,7 @@ static unsigned int pack_max_fds;
 static size_t peak_pack_mapped;
 static size_t pack_mapped;
 struct packed_git *packed_git;
-
-static struct mru packed_git_mru_storage;
-struct mru *packed_git_mru = &packed_git_mru_storage;
+struct mru packed_git_mru;
 
 #define SZ_FMT PRIuMAX
 static inline uintmax_t sz_fmt(size_t s) { return s; }
@@ -444,6 +442,7 @@ static int open_packed_git_1(struct packed_git *p)
 	unsigned char sha1[20];
 	unsigned char *idx_sha1;
 	long fd_flag;
+	ssize_t read_result;
 
 	if (!p->index_data && open_pack_index(p))
 		return error("packfile %s index unavailable", p->pack_name);
@@ -485,7 +484,10 @@ static int open_packed_git_1(struct packed_git *p)
 		return error("cannot set FD_CLOEXEC");
 
 	/* Verify we recognize this pack file format. */
-	if (read_in_full(p->pack_fd, &hdr, sizeof(hdr)) != sizeof(hdr))
+	read_result = read_in_full(p->pack_fd, &hdr, sizeof(hdr));
+	if (read_result < 0)
+		return error_errno("error reading from %s", p->pack_name);
+	if (read_result != sizeof(hdr))
 		return error("file %s is far too short to be a packfile", p->pack_name);
 	if (hdr.hdr_signature != htonl(PACK_SIGNATURE))
 		return error("file %s is not a GIT packfile", p->pack_name);
@@ -502,7 +504,10 @@ static int open_packed_git_1(struct packed_git *p)
 			     p->num_objects);
 	if (lseek(p->pack_fd, p->pack_size - sizeof(sha1), SEEK_SET) == -1)
 		return error("end of packfile %s is unavailable", p->pack_name);
-	if (read_in_full(p->pack_fd, sha1, sizeof(sha1)) != sizeof(sha1))
+	read_result = read_in_full(p->pack_fd, sha1, sizeof(sha1));
+	if (read_result < 0)
+		return error_errno("error reading from %s", p->pack_name);
+	if (read_result != sizeof(sha1))
 		return error("packfile %s signature is unavailable", p->pack_name);
 	idx_sha1 = ((unsigned char *)p->index_data) + p->index_size - 40;
 	if (hashcmp(sha1, idx_sha1))
@@ -861,9 +866,9 @@ static void prepare_packed_git_mru(void)
 {
 	struct packed_git *p;
 
-	mru_clear(packed_git_mru);
+	mru_clear(&packed_git_mru);
 	for (p = packed_git; p; p = p->next)
-		mru_append(packed_git_mru, p);
+		mru_append(&packed_git_mru, p);
 }
 
 static int prepare_packed_git_run_once = 0;
@@ -1738,7 +1743,7 @@ off_t find_pack_entry_one(const unsigned char *sha1,
 		       sha1[0], sha1[1], sha1[2], lo, hi, p->num_objects);
 
 	while (lo < hi) {
-		unsigned mi = (lo + hi) / 2;
+		unsigned mi = lo + (hi - lo) / 2;
 		int cmp = hashcmp(index + mi * stride, sha1);
 
 		if (debug_lookup)
@@ -1832,9 +1837,9 @@ int find_pack_entry(const unsigned char *sha1, struct pack_entry *e)
 	if (!packed_git)
 		return 0;
 
-	for (p = packed_git_mru->head; p; p = p->next) {
+	for (p = packed_git_mru.head; p; p = p->next) {
 		if (fill_pack_entry(sha1, e, p->item)) {
-			mru_mark(packed_git_mru, p);
+			mru_mark(&packed_git_mru, p);
 			return 1;
 		}
 	}

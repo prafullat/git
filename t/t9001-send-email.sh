@@ -148,6 +148,8 @@ cat >expected-cc <<\EOF
 !two@example.com!
 !three@example.com!
 !four@example.com!
+!five@example.com!
+!six@example.com!
 EOF
 "
 
@@ -161,6 +163,8 @@ test_expect_success $PREREQ 'cc trailer with various syntax' '
 	Cc: <two@example.com> # trailing comments are ignored
 	Cc: <three@example.com>, <not.four@example.com> one address per line
 	Cc: "Some # Body" <four@example.com> [ <also.a.comment> ]
+	Cc: five@example.com # not.six@example.com
+	Cc: six@example.com, not.seven@example.com
 	EOF
 	clean_fake_sendmail &&
 	git send-email -1 --to=recipient@example.com \
@@ -1262,7 +1266,7 @@ test_expect_success $PREREQ 'asks about and fixes 8bit encodings' '
 	grep email-using-8bit stdout &&
 	grep "Which 8bit encoding" stdout &&
 	egrep "Content|MIME" msgtxt1 >actual &&
-	test_cmp actual content-type-decl
+	test_cmp content-type-decl actual
 '
 
 test_expect_success $PREREQ 'sendemail.8bitEncoding works' '
@@ -1273,7 +1277,7 @@ test_expect_success $PREREQ 'sendemail.8bitEncoding works' '
 			--smtp-server="$(pwd)/fake.sendmail" \
 			email-using-8bit >stdout &&
 	egrep "Content|MIME" msgtxt1 >actual &&
-	test_cmp actual content-type-decl
+	test_cmp content-type-decl actual
 '
 
 test_expect_success $PREREQ '--8bit-encoding overrides sendemail.8bitEncoding' '
@@ -1285,7 +1289,7 @@ test_expect_success $PREREQ '--8bit-encoding overrides sendemail.8bitEncoding' '
 			--8bit-encoding=UTF-8 \
 			email-using-8bit >stdout &&
 	egrep "Content|MIME" msgtxt1 >actual &&
-	test_cmp actual content-type-decl
+	test_cmp content-type-decl actual
 '
 
 test_expect_success $PREREQ 'setup expect' '

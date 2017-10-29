@@ -69,6 +69,13 @@ int is_staging_gitmodules_ok(const struct index_state *istate)
 	return 1;
 }
 
+static int for_each_remote_ref_submodule(const char *submodule,
+					 each_ref_fn fn, void *cb_data)
+{
+	return refs_for_each_remote_ref(get_submodule_ref_store(submodule),
+					fn, cb_data);
+}
+
 /*
  * Try to update the "path" entry in the "submodule.<name>" section of the
  * .gitmodules file. Return 0 only if a .gitmodules file was found, a section
@@ -496,7 +503,7 @@ static void show_submodule_header(struct diff_options *o, const char *path,
 
 	if (add_submodule_odb(path)) {
 		if (!message)
-			message = "(not initialized)";
+			message = "(commits not present)";
 		goto output_header;
 	}
 
@@ -767,19 +774,36 @@ static int append_oid_to_argv(const struct object_id *oid, void *data)
 	return 0;
 }
 
+struct has_commit_data {
+	int result;
+	const char *path;
+};
+
 static int check_has_commit(const struct object_id *oid, void *data)
 {
-	int *has_commit = data;
+	struct has_commit_data *cb = data;
 
-	if (!lookup_commit_reference(oid))
-		*has_commit = 0;
+	enum object_type type = sha1_object_info(oid->hash, NULL);
 
-	return 0;
+	switch (type) {
+	case OBJ_COMMIT:
+		return 0;
+	case OBJ_BAD:
+		/*
+		 * Object is missing or invalid. If invalid, an error message
+		 * has already been printed.
+		 */
+		cb->result = 0;
+		return 0;
+	default:
+		die(_("submodule entry '%s' (%s) is a %s, not a commit"),
+		    cb->path, oid_to_hex(oid), typename(type));
+	}
 }
 
 static int submodule_has_commits(const char *path, struct oid_array *commits)
 {
-	int has_commit = 1;
+	struct has_commit_data has_commit = { 1, path };
 
 	/*
 	 * Perform a cheap, but incorrect check for the existence of 'commits'.
@@ -795,7 +819,7 @@ static int submodule_has_commits(const char *path, struct oid_array *commits)
 
 	oid_array_for_each_unique(commits, check_has_commit, &has_commit);
 
-	if (has_commit) {
+	if (has_commit.result) {
 		/*
 		 * Even if the submodule is checked out and the commit is
 		 * present, make sure it exists in the submodule's object store
@@ -814,12 +838,12 @@ static int submodule_has_commits(const char *path, struct oid_array *commits)
 		cp.dir = path;
 
 		if (capture_command(&cp, &out, GIT_MAX_HEXSZ + 1) || out.len)
-			has_commit = 0;
+			has_commit.result = 0;
 
 		strbuf_release(&out);
 	}
 
-	return has_commit;
+	return has_commit.result;
 }
 
 static int submodule_needs_pushing(const char *path, struct oid_array *commits)
@@ -1627,6 +1651,8 @@ static int find_first_merges(struct object_array *result, const char *path,
 			oid_to_hex(&a->object.oid));
 	init_revisions(&revs, NULL);
 	rev_opts.submodule = path;
+	/* FIXME: can't handle linked worktrees in submodules yet */
+	revs.single_worktree = path != NULL;
 	setup_revisions(ARRAY_SIZE(rev_args)-1, rev_args, &revs, &rev_opts);
 
 	/* save all revisions from the above list that contain b */
@@ -1659,7 +1685,7 @@ static int find_first_merges(struct object_array *result, const char *path,
 			add_object_array(merges.objects[i].item, NULL, result);
 	}
 
-	free(merges.objects);
+	object_array_clear(&merges);
 	return result->nr;
 }
 
@@ -1764,7 +1790,7 @@ int merge_submodule(struct object_id *result, const char *path,
 			print_commit((struct commit *) merges.objects[i].item);
 	}
 
-	free(merges.objects);
+	object_array_clear(&merges);
 	return 0;
 }
 
@@ -1971,6 +1997,10 @@ const char *get_superproject_working_tree(void)
 	return ret;
 }
 
+/*
+ * Put the gitdir for a submodule (given relative to the main
+ * repository worktree) into `buf`, or return -1 on error.
+ */
 int submodule_to_gitdir(struct strbuf *buf, const char *submodule)
 {
 	const struct submodule *sub;

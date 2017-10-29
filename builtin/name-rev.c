@@ -253,7 +253,7 @@ static int name_ref(const char *path, const struct object_id *oid, int flags, vo
 		struct commit *commit = (struct commit *)o;
 		int from_tag = starts_with(path, "refs/tags/");
 
-		if (taggerdate == ULONG_MAX)
+		if (taggerdate == TIME_MAX)
 			taggerdate = ((struct commit *)o)->date;
 		path = name_ref_abbrev(path, can_abbreviate_output);
 		name_rev(commit, xstrdup(path), taggerdate, 0, 0,
@@ -494,5 +494,6 @@ int cmd_name_rev(int argc, const char **argv, const char *prefix)
 				  always, allow_undefined, data.name_only);
 	}
 
+	UNLEAK(revs);
 	return 0;
 }
