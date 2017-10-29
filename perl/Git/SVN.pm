@@ -1192,6 +1192,15 @@ sub do_fetch {
 	my ($self, $paths, $rev) = @_;
 	my $ed;
 	my ($last_rev, @parents);
+
+	# Populate file size in $paths structure
+	for my $path (keys %$paths) {
+	    my $c_path = $path;
+	    substr($c_path, 0, 1, ''); # Remove first char, as SVN:stat API does not like it.
+	    $paths->{$path}->{'file_size'} = $self->ra->get_file_size($c_path, $rev);;
+	}
+	$self->{paths} = $paths;
+
 	if (my $lc = $self->last_commit) {
 		# we can have a branch that was deleted, then re-added
 		# under the same name but copied from another path, in

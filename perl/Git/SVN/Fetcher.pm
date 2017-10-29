@@ -65,6 +65,8 @@ sub new {
 	require Git::IndexInfo;
 	$self->{gii} = $git_svn->tmp_index_do(sub { Git::IndexInfo->new });
 	$self->{pathnameencoding} = Git::config('svn.pathnameencoding');
+	$self->{git_svn} = $git_svn;
+
 	$self;
 }
 
@@ -123,6 +125,16 @@ sub in_dot_git {
 # This will also check whether the path is explicitly included
 sub is_path_ignored {
 	my ($self, $path) = @_;
+
+	my $path_key = '/'.$path;
+	my $paths = $self->{git_svn}->{paths};
+	if (defined $paths->{$path_key}->{'file_size'} &&
+	   ($paths->{$path_key}->{'file_size'} > (50*1024*1024)))
+	{
+	    print "Ignoring $path due to size limit\n";
+	    return 1;
+	}
+
 	return 1 if in_dot_git($path);
 	return 1 if defined($self->{ignore_regex}) &&
 	            $path =~ m!$self->{ignore_regex}!;

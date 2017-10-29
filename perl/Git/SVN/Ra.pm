@@ -77,6 +77,13 @@ sub _auth_providers () {
 	\@rv;
 }
 
+sub get_file_size {
+    my ($self, $path, $rev) = @_;
+    my $pool = SVN::Pool->new;
+    my $s = $RA->SUPER::stat(canonicalize_path($path), $rev, $pool);
+    return $s->size;
+}
+
 sub prepare_config_once {
 	SVN::_Core::svn_config_ensure($config_dir, undef);
 	my ($baton, $callbacks) = SVN::Core::auth_open_helper(_auth_providers);
