@@ -81,6 +81,7 @@ sub get_file_size {
     my ($self, $path, $rev) = @_;
     my $pool = SVN::Pool->new;
     my $s = $RA->SUPER::stat(canonicalize_path($path), $rev, $pool);
+    return -1 if !defined $s;
     return $s->size;
 }
 
