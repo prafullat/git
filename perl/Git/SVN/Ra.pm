@@ -10,6 +10,7 @@ use Git::SVN::Utils qw(
 );
 
 use SVN::Ra;
+use Data::Dumper;
 BEGIN {
 	@ISA = qw(SVN::Ra);
 }
@@ -77,9 +78,42 @@ sub _auth_providers () {
 	\@rv;
 }
 
+sub log_callback
+{
+        my ($paths, $revnum, $user, $datetime, $logmsg) = @_;
+        #print $datetime.$user.$revnum."\n";
+	print "REV : ".Dumper($revnum)."\n";
+
+	#print "REV : ".Dumper($user)."\n";
+	print Dumper($paths);
+        # while (my ($path, $changes) = each %$paths) {
+        #     print $changes->{action}, " $path\n";
+        #     if ($changes->copyfrom_path) {
+        #         print " from ", $changes->copyfrom_path,
+        #               " r", $changes->copyfrom_rev, "\n"
+        #     }
+        # }
+
+        #print "\n";
+
+}
+
+
 sub get_file_size {
-    my ($self, $path, $rev) = @_;
+    my ($self, $path, $rev, $action) = @_;
     my $pool = SVN::Pool->new;
+    if ($action eq 'D') {
+        #$RA->SUPER::get_log([$path], $rev-1, 0, 0, 1, 0,
+	#			\&log_callback);
+    	my $last_rev = -1;
+    	$RA->SUPER::get_log([$path], $rev-1, 0, 1, 1, 0,
+    			sub { $last_rev = $_[1]});
+    	print "****Last rev for $path is $last_rev \n";
+	if ($last_rev > 0) {
+	    $rev = $last_rev;
+	}
+    }
+
     my $s = $RA->SUPER::stat(canonicalize_path($path), $rev, $pool);
     return -1 if !defined $s;
     return $s->size;
@@ -254,6 +288,7 @@ sub get_log {
 			push(@args, sub { &$receiver(@_) if (--$limit >= 0) });
 		}
 	}
+
 	my $ret = $self->SUPER::get_log(@args, $pool);
 	$pool->clear;
 	$ret;

@@ -9,8 +9,7 @@ use Carp qw/croak/;
 use File::Basename qw/dirname/;
 use Git qw/command command_oneline command_noisy command_output_pipe
            command_input_pipe command_close_pipe
-           command_bidi_pipe command_close_bidi_pipe
-           get_record/;
+           command_bidi_pipe command_close_bidi_pipe/;
 BEGIN {
 	@ISA = qw(SVN::Delta::Editor);
 }
@@ -131,7 +130,7 @@ sub is_path_ignored {
 	if (defined $paths->{$path_key}->{'file_size'} &&
 	   ($paths->{$path_key}->{'file_size'} > (50*1024*1024)))
 	{
-	    print "Ignoring $path due to size limit\n";
+	    #print "Ignoring $path due to size limit\n";
 	    return 1;
 	}
 

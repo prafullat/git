@@ -13,7 +13,8 @@ use IPC::Open3;
 use Memoize;  # core since 5.8.0, Jul 2002
 use POSIX qw(:signal_h);
 use Time::Local;
-
+use Devel::StackTrace;
+use Data::Dumper;
 use Git qw(
     command
     command_oneline
@@ -1188,16 +1189,36 @@ sub find_parent_branch {
 	return undef;
 }
 
+sub log_callback
+{
+        my ($paths, $revnum, $user, $datetime, $logmsg) = @_;
+        #print $datetime.$user.$revnum."\n";
+	print "REV : ".Dumper($user)."\n";
+	#print Dumper($paths);
+        # while (my ($path, $changes) = each %$paths) {
+        #     print $changes->{action}, " $path\n";
+        #     if ($changes->copyfrom_path) {
+        #         print " from ", $changes->copyfrom_path,
+        #               " r", $changes->copyfrom_rev, "\n"
+        #     }
+        # }
+
+        #print "\n";
+
+}
+
 sub do_fetch {
 	my ($self, $paths, $rev) = @_;
 	my $ed;
 	my ($last_rev, @parents);
 
+
 	# Populate file size in $paths structure
 	for my $path (keys %$paths) {
 	    my $c_path = $path;
 	    substr($c_path, 0, 1, ''); # Remove first char, as SVN:stat API does not like it.
-	    $paths->{$path}->{'file_size'} = $self->ra->get_file_size($c_path, $rev);;
+	    $paths->{$path}->{'file_size'} = $self->ra->get_file_size($c_path, $rev,
+	    				     $paths->{$path}->{action});;
 	}
 	$self->{paths} = $paths;
 
