@@ -103,8 +103,6 @@ sub get_file_size {
     my ($self, $path, $rev, $action) = @_;
     my $pool = SVN::Pool->new;
     if ($action eq 'D') {
-        #$RA->SUPER::get_log([$path], $rev-1, 0, 0, 1, 0,
-	#			\&log_callback);
     	my $last_rev = -1;
     	$RA->SUPER::get_log([$path], $rev-1, 0, 1, 1, 0,
     			sub { $last_rev = $_[1]});

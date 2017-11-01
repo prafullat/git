@@ -1006,6 +1006,8 @@ sub gc {
 sub do_git_commit {
 	my ($self, $log_entry) = @_;
 	my $lr = $self->last_rev;
+
+
 	if (defined $lr && $lr >= $log_entry->{revision}) {
 		die "Last fetched revision of ", $self->refname,
 		    " was r$lr, but we are about to fetch: ",
@@ -2073,6 +2075,7 @@ sub make_log_entry {
 	$log_entry{email} = $email;
 	$log_entry{commit_name} = $commit_name;
 	$log_entry{commit_email} = $commit_email;
+#	print Dumper(%log_entry);
 	\%log_entry;
 }
 

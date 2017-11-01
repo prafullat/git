@@ -5,6 +5,8 @@ use vars qw/@ISA $_ignore_regex $_include_regex $_preserve_empty_dirs
 use strict;
 use warnings;
 use SVN::Delta;
+#use Devel::StackTrace;
+use Data::Dumper;
 use Carp qw/croak/;
 use File::Basename qw/dirname/;
 use Git qw/command command_oneline command_noisy command_output_pipe
@@ -131,7 +133,7 @@ sub is_path_ignored {
 	   ($paths->{$path_key}->{'file_size'} > (50*1024*1024)))
 	{
 	    #print "Ignoring $path due to size limit\n";
-	    return 1;
+	    return 2;
 	}
 
 	return 1 if in_dot_git($path);
@@ -177,7 +179,7 @@ sub git_path {
 
 sub delete_entry {
 	my ($self, $path, $rev, $pb) = @_;
-	return undef if $self->is_path_ignored($path);
+	return undef if $self->is_path_ignored($path) == 1;
 
 	my $gpath = $self->git_path($path);
 	return undef if ($gpath eq '');
@@ -210,7 +212,7 @@ sub open_file {
 	my ($self, $path, $pb, $rev) = @_;
 	my ($mode, $blob);
 
-	goto out if $self->is_path_ignored($path);
+	goto out if $self->is_path_ignored($path) == 1;
 
 	my $gpath = $self->git_path($path);
 	($mode, $blob) = (command('ls-tree', '-z', $self->{c}, "./$gpath")
@@ -240,7 +242,7 @@ sub add_file {
 			delete_entry($self, $added_placeholder{$dir})
 				unless $path eq $added_placeholder{$dir};
 			delete $added_placeholder{$dir}
-		}
+	 	}
 	}
 
 	{ path => $path, mode_a => $mode, mode_b => $mode,
@@ -376,15 +378,22 @@ sub apply_textdelta {
 
 sub close_file {
 	my ($self, $fb, $exp) = @_;
-	return undef if $self->is_path_ignored($fb->{path});
+	return undef if $self->is_path_ignored($fb->{path}) == 1;
 
 	my $hash;
 	my $path = $self->git_path($fb->{path});
+	if ($self->is_path_ignored($fb->{path})  == 2) {
+	   $fb->{fh} =  $::_repository->temp_acquire(
+	       'dummy_large_file');
+	   $fb->{base} = $::_repository->temp_acquire(
+	       'tmp_dummy_file');;
+	   $fb->{mode_b} = '100644';
+	}
 	if (my $fh = $fb->{fh}) {
 		if (defined $exp) {
 			seek($fh, 0, 0) or croak $!;
 			my $got = ::md5sum($fh);
-			if ($got ne $exp) {
+			if ($got ne $exp && $self->is_path_ignored($fb->{path}) != 2) {
 				die "Checksum mismatch: $path\n",
 				    "expected: $exp\n    got: $got\n";
 			}
