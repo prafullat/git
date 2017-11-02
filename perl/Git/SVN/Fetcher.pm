@@ -132,12 +132,24 @@ sub is_path_ignored {
 	if (defined $paths->{$path_key}->{'file_size'} &&
 	   ($paths->{$path_key}->{'file_size'} > (50*1024*1024)))
 	{
-	    #print "Ignoring $path due to size limit\n";
+	    print "Ignoring $path due to size limit\n";
 	    return 1;
 	}
-	if (defined $self->{git_svn}->{ignore_path}->{$path_key})
+
+	my $r = rindex($path, "/");
+	my $s = rindex($path, '/', $r-1);
+	if ($s > 0) {
+		$r = $r - $s;
+	}
+	my $short_path = $path;
+	if ($r > 0) {
+	   $short_path = substr $path, $r;
+	}
+
+	if (defined $self->{git_svn}->{ignore_path}->{$path})
 	{
-	  return 1;
+	    print "Ignoring $path due to the fact that it was too big in prev rev\n";
+	    return 1;
 	}
 
 	return 1 if in_dot_git($path);
