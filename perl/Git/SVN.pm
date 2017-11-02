@@ -1220,9 +1220,17 @@ sub do_fetch {
 	    my $c_path = $path;
 	    substr($c_path, 0, 1, ''); # Remove first char, as SVN:stat API does not like it.
 	    $paths->{$path}->{'file_size'} = $self->ra->get_file_size($c_path, $rev,
-	    				     $paths->{$path}->{action});;
+								      $paths->{$path}->{action});;
+	    if ($paths->{$path}->{'file_size'} > (50*1024*1024)) {
+		$self->{ignore_path}->{$path} = 1;
+	    	if ($paths->{$path}->{action} eq 'D') {
+		    delete($self->{ignore_path}->{$path});
+	       }
+	    }
+
 	}
 	$self->{paths} = $paths;
+	print Dumper($self->{ignore_path});
 
 	if (my $lc = $self->last_commit) {
 		# we can have a branch that was deleted, then re-added

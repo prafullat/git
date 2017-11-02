@@ -133,7 +133,11 @@ sub is_path_ignored {
 	   ($paths->{$path_key}->{'file_size'} > (50*1024*1024)))
 	{
 	    #print "Ignoring $path due to size limit\n";
-	    return 2;
+	    return 1;
+	}
+	if (defined $self->{git_svn}->{ignore_path}->{$path_key})
+	{
+	  return 1;
 	}
 
 	return 1 if in_dot_git($path);
